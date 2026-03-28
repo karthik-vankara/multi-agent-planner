@@ -1,4 +1,4 @@
-import { callLLM } from "../utils/llm.js";
+import { callLLMJSON } from "../utils/llm.js";
 
 export async function plannerAgent(userGoal) {
   const systemPrompt = `
@@ -10,60 +10,50 @@ Your job is to break a user goal into structured tasks.
 RULES
 ========================
 
-- Extract:
-  - goal
-  - duration in days
-  - daily available hours
+- Extract from the goal:
+  - goal (string)
+  - duration_days (number)
+  - daily_hours (number)
 
-- Break goal into clear, actionable tasks
+- Break the goal into clear, actionable tasks.
 
-- Each task must include:
-  - id (task_1, task_2...)
-  - title
-  - description
-  - priority (high | medium | low)
-  - estimated_hours (number)
-  - dependencies (array of task ids)
+- Each task MUST include:
+  - id: "task_1", "task_2" ... sequential
+  - title: short name
+  - description: one sentence
+  - priority: "high" | "medium" | "low"
+  - estimated_hours: total hours this task needs across all days (number > 0)
+  - dependencies: array of task ids that must be completed first ([] if none)
 
-- Tasks should:
-  - cover the full goal
-  - not overlap
-  - be logically ordered via dependencies
-
-STRICTLY ensure:
-- total hours per day ≤ daily_hours
-- all days from day_1 to day_N are present
+- The sum of all estimated_hours MUST equal duration_days × daily_hours.
+- Tasks must not overlap in scope.
+- Order tasks logically using dependencies (foundations first, practice later, review last).
 
 ========================
 OUTPUT FORMAT (STRICT)
 ========================
 
-Return ONLY valid JSON:
+Return ONLY valid JSON — no markdown, no explanations:
 
 {
   "goal": "...",
   "duration_days": number,
   "daily_hours": number,
-  "tasks": [...]
+  "tasks": [
+    {
+      "id": "task_1",
+      "title": "...",
+      "description": "...",
+      "priority": "high",
+      "estimated_hours": number,
+      "dependencies": []
+    }
+  ]
 }
-
-Do NOT include explanations or markdown.
 `;
 
-  const userPrompt = `
-User Goal:
-${userGoal}
-`;
-
-  const response = await callLLM([
+  return callLLMJSON([
     { role: "system", content: systemPrompt },
-    { role: "user", content: userPrompt }
+    { role: "user", content: `User Goal:\n${userGoal}` },
   ]);
-
-  try {
-    return JSON.parse(response);
-  } catch (err) {
-    console.error("Planner Agent JSON parse failed:", response);
-    throw new Error("Invalid JSON from Planner Agent");
-  }
 }
