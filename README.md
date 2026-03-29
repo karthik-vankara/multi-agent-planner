@@ -5,6 +5,7 @@ Multi-Agent Planner is a Node.js app that turns a natural-language goal into a d
 It supports:
 - CLI usage (`node index.js ...`)
 - HTTP API usage (async `POST /runs` + `GET /runs/:id` polling)
+- React + Vite test UI in `ui/` for end-to-end backend verification
 
 ## How It Works
 
@@ -81,6 +82,14 @@ effective_score = critic_score - (validator_error_count * 0.5)
 │   ├── memory.js
 │   ├── schemaValidator.js   ← Ajv-based validators for all agent outputs
 │   └── validator.js         ← hard constraint checker
+├── ui/
+│   ├── src/
+│   │   ├── api/client.js    ← frontend API wrapper for health/runs endpoints
+│   │   ├── components/      ← form, monitor, result, and health panels
+│   │   ├── App.jsx          ← single-page test harness
+│   │   └── styles.css       ← frontend visual system
+│   ├── .env.example
+│   └── package.json
 ├── api.js
 ├── index.js
 ├── package.json
@@ -143,6 +152,56 @@ npm run api
 ```
 
 Runs on `http://localhost:3000` by default (configure with `PORT` env var).
+
+## Run (UI)
+
+The repository includes a React + Vite test harness in `ui/` so you can verify the full flow from the browser.
+
+Install frontend dependencies:
+
+```bash
+cd ui
+npm install
+cp .env.example .env
+```
+
+Set frontend env values in `ui/.env`:
+
+```env
+VITE_API_BASE_URL=http://localhost:3000
+VITE_API_KEY=
+VITE_POLL_INTERVAL_MS=2000
+```
+
+Start the UI:
+
+```bash
+npm run ui
+```
+
+Build the UI:
+
+```bash
+npm run ui:build
+```
+
+The UI is a test harness for the current async backend and includes:
+
+- backend health check (`GET /health`)
+- run creation form (`POST /runs`)
+- live polling monitor (`GET /runs/:id`)
+- cancel action (`POST /runs/:id/cancel`)
+- final result and raw JSON inspector
+
+Recommended local workflow:
+
+```bash
+# terminal 1
+npm run api
+
+# terminal 2
+npm run ui
+```
 
 ## API Security
 

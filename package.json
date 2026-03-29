@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "api": "node api.js",
+    "ui": "npm --prefix ui run dev",
+    "ui:build": "npm --prefix ui run build",
+    "ui:preview": "npm --prefix ui run preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

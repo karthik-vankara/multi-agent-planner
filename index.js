@@ -1,5 +1,5 @@
 // ── Config must be imported first so env vars are loaded before any other module ──
-import "../config/env.js";
+import "./config/env.js";
 
 import { executeRun } from "./orchestrator/runExecutor.js";
 
