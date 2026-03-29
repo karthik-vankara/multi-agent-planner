@@ -1,24 +1,51 @@
 # Multi-Agent Planner
 
-This project is a small Node.js prototype that uses multiple LLM-driven agents to turn a natural language goal into a structured plan, generate a day-by-day schedule, critique the schedule, and refine it across a few iterations.
+Multi-Agent Planner is a Node.js app that turns a natural-language goal into a day-by-day schedule using a multi-agent loop.
 
-## What It Does
+It supports:
+- CLI usage (`node index.js ...`)
+- HTTP API usage (`POST /plan`)
 
-- Accepts a user goal such as preparing for a coding interview in 14 days
-- Breaks the goal into structured tasks
-- Converts those tasks into a daily schedule
-- Reviews the schedule for quality and constraint issues
-- Refines the schedule based on critic feedback
+## How It Works
 
-## Agent Flow
+The runtime pipeline is implemented in `index.js`:
 
-The current workflow is orchestrated from `index.js`.
+1. `plannerAgent` converts the goal into a structured plan (`tasks`, `duration_days`, `daily_hours`).
+2. `optimizerAgent` generates an initial schedule.
+3. `validateSchedule` performs deterministic constraint checks in code.
+4. `criticAgent` evaluates quality only when validator errors are `0`.
+5. `manager` decides next action (`OPTIMIZE`, `REFINE`, or `STOP`).
+6. `refinerAgent` improves the schedule when quality is below target.
 
-1. `plannerAgent` converts a goal into structured tasks
-2. `optimizerAgent` turns tasks into a schedule
-3. `criticAgent` scores the schedule and identifies issues
-4. `refinerAgent` updates the schedule using critic feedback
-5. The loop runs up to 3 refinement attempts and keeps improved results
+The loop runs for up to **7 iterations** and returns the best valid schedule found.
+
+## Decision Logic
+
+`orchestrator/manager.js` applies this priority:
+
+1. Validator errors exist -> `OPTIMIZE`
+2. Effective score >= 8 -> `STOP`
+3. Score stagnates after iteration 2 -> `STOP`
+4. Otherwise -> `REFINE`
+
+Effective score formula:
+
+```text
+effective_score = critic_score - (validator_error_count * 0.5)
+```
+
+## Validator Rules
+
+`utils/validator.js` checks hard constraints programmatically, including:
+
+- missing/extra days
+- daily hour overflow
+- empty days
+- zero-hour slots
+- unknown task IDs
+- unscheduled tasks
+- dependency violations
+- under-allocated tasks (scheduled < 50% of estimated)
 
 ## Project Structure
 
@@ -30,17 +57,21 @@ The current workflow is orchestrated from `index.js`.
 │   ├── criticAgent.js
 │   └── refinerAgent.js
 ├── orchestrator/
+│   └── manager.js
 ├── utils/
 │   ├── llm.js
-│   └── memory.js
+│   ├── memory.js
+│   └── validator.js
+├── api.js
 ├── index.js
-└── package.json
+├── package.json
+└── README.md
 ```
 
 ## Requirements
 
 - Node.js 18+
-- An OpenAI API key
+- OpenAI API key
 
 ## Setup
 
@@ -50,39 +81,104 @@ Install dependencies:
 npm install
 ```
 
-Create a `.env` file in the project root:
+Create `.env` in project root:
 
 ```env
 OPENAI_API_KEY=your_api_key_here
 ```
 
-## Run
+## Run (CLI)
+
+Default npm script:
 
 ```bash
-node index.js
+npm start -- --goal "Prepare for a coding interview" --days 14 --hours 3
 ```
 
-## How The LLM Is Used
+Direct Node usage:
 
-The OpenAI client is configured in `utils/llm.js` and currently uses:
+```bash
+node index.js --goal "Prepare for a coding interview" --days 14 --hours 3
+```
+
+You can also pass a positional goal:
+
+```bash
+node index.js "Prepare for a coding interview in 14 days with 3 hours daily"
+```
+
+CLI options:
+
+- `--goal`, `-g`: goal text
+- `--days`, `-d`: duration override
+- `--hours`, `-h`: daily-hours override
+
+## Run (API)
+
+Start the API server:
+
+```bash
+npm run api
+```
+
+By default it runs on `http://localhost:3000`.
+
+### Endpoints
+
+`GET /health`
+
+- Response:
+
+```json
+{ "status": "ok" }
+```
+
+`POST /plan`
+
+- Request body:
+
+```json
+{
+	"goal": "Prepare for a coding interview",
+	"days": 14,
+	"hours": 3
+}
+```
+
+- Success response:
+
+```json
+{
+	"success": true,
+	"result": {
+		"bestScore": 8.5,
+		"validatorErrors": 0,
+		"qualityIssues": 1,
+		"suggestions": ["..."],
+		"schedule": {
+			"goal": "...",
+			"schedule": {
+				"day_1": [{ "task_id": "task_1", "hours": 2 }]
+			}
+		}
+	}
+}
+```
+
+- Validation failures return `400` (invalid `goal`/`days`/`hours`).
+- Runtime failures return `500`.
+
+## LLM Configuration
+
+`utils/llm.js` currently uses:
 
 - model: `gpt-4.1`
 - temperature: `0.3`
 
-Each agent sends a specialized prompt and expects strict JSON back from the model.
+All agents return strict JSON. `callLLMJSON` retries once if parsing fails.
 
 ## Notes
 
-- Memory is currently in-process only and resets on each run
-- The `orchestrator/` folder exists but is not used yet
-- The project uses ES modules through `"type": "module"` in `package.json`
-
-## Example Goal
-
-The current entrypoint uses this example goal:
-
-```text
-I want to prepare for a coding interview in 14 days with 3 hours daily
-```
-
-You can change that string in `index.js` to generate plans for other goals.
+- Memory in `utils/memory.js` is in-process only and resets per run.
+- The project uses ES modules (`"type": "module"`).
+- `OPENAI_API_KEY` must be present in environment or `.env`.
