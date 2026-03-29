@@ -1,13 +1,14 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const API_KEY = import.meta.env.VITE_API_KEY?.trim();
 
-function buildHeaders(extraHeaders = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...extraHeaders,
-  };
+function buildHeaders({ extraHeaders = {}, hasBody = false, includeAuth = true } = {}) {
+  const headers = { ...extraHeaders };
 
-  if (API_KEY) {
+  if (hasBody && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (includeAuth && API_KEY) {
     headers.Authorization = `Bearer ${API_KEY}`;
   }
 
@@ -50,9 +51,17 @@ async function parseResponse(response) {
 }
 
 async function request(path, options = {}) {
+  const method = (options.method ?? "GET").toUpperCase();
+  const hasBody = options.body != null && method !== "GET" && method !== "HEAD";
+  const includeAuth = path !== "/health";
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: buildHeaders(options.headers),
+    headers: buildHeaders({
+      extraHeaders: options.headers,
+      hasBody,
+      includeAuth,
+    }),
   });
   return parseResponse(response);
 }
