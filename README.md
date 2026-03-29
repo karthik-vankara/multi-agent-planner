@@ -2,6 +2,11 @@
 
 Multi-Agent Planner is a Node.js app that turns a natural-language goal into a day-by-day schedule using a multi-agent loop.
 
+## Deployed URLs
+
+- Backend API (Vercel): https://multi-agent-planner-backend.vercel.app
+- Frontend UI (Vercel): https://multi-agent-planner.vercel.app
+
 It supports:
 - CLI usage (`node index.js ...`)
 - HTTP API usage (async `POST /runs` + `GET /runs/:id` polling)
