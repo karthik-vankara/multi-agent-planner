@@ -10,11 +10,23 @@ import { RateLimitError } from "../utils/errors.js";
  */
 const store = new Map(); // key -> number[] (timestamps)
 
+function isHealthPath(path = "") {
+  return path === "/health" || path === "/health/" || path === "/api/health" || path === "/api/health/";
+}
+
 function getKey(req) {
-  return req.clientId ?? req.ip ?? "unknown";
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const forwardedIp = typeof forwardedFor === "string"
+    ? forwardedFor.split(",")[0]?.trim()
+    : null;
+
+  return req.clientId ?? forwardedIp ?? req.ip ?? "unknown";
 }
 
 export function rateLimiter(req, res, next) {
+  // Keep liveness checks consistently reachable for UIs and deployment probes.
+  if (isHealthPath(req.path)) return next();
+
   const key  = getKey(req);
   const now  = Date.now();
   const windowMs = RATE_LIMIT_WINDOW_S * 1000;

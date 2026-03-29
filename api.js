@@ -25,6 +25,9 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
 const app = express();
 
+// Respect X-Forwarded-* headers on Vercel so req.ip reflects the real client.
+app.set("trust proxy", true);
+
 // ── Middleware stack (order matters) ─────────────────────────────────────────
 app.use(express.json({ limit: MAX_BODY }));
 app.use(cors);
