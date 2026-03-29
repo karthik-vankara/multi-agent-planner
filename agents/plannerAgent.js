@@ -25,9 +25,11 @@ RULES
   - estimated_hours: total hours this task needs across all days (number > 0)
   - dependencies: array of task ids that must be completed first ([] if none)
 
-- The sum of all estimated_hours MUST equal duration_days × daily_hours.
+- CRITICAL: The sum of ALL estimated_hours MUST equal exactly (duration_days × daily_hours).
+  Example: 14 days × 3h/day = 42h total. All tasks combined must sum to exactly 42h.
+
 - Tasks must not overlap in scope.
-- Order tasks logically using dependencies (foundations first, practice later, review last).
+- Order tasks logically: foundations → practice → review/mock.
 
 ========================
 OUTPUT FORMAT (STRICT)
@@ -52,8 +54,29 @@ Return ONLY valid JSON — no markdown, no explanations:
 }
 `;
 
-  return callLLMJSON([
+  const plan = await callLLMJSON([
     { role: "system", content: systemPrompt },
     { role: "user", content: `User Goal:\n${userGoal}` },
   ]);
+
+  // Programmatic safeguard: normalize task hours so they sum to exactly the available capacity.
+  // This guarantees the optimizer can always build a valid schedule.
+  const capacity = plan.duration_days * plan.daily_hours;
+  const rawTotal = plan.tasks.reduce((sum, t) => sum + (t.estimated_hours || 0), 0);
+  if (rawTotal > 0 && Math.abs(rawTotal - capacity) > 0.01) {
+    const scale = capacity / rawTotal;
+    let allocated = 0;
+    plan.tasks.forEach((t, i) => {
+      if (i < plan.tasks.length - 1) {
+        // Round to 0.5h increments for clean scheduling
+        t.estimated_hours = Math.round((t.estimated_hours * scale) * 2) / 2;
+        allocated += t.estimated_hours;
+      } else {
+        // Last task absorbs remainder to ensure exact total
+        t.estimated_hours = Math.round((capacity - allocated) * 2) / 2;
+      }
+    });
+  }
+
+  return plan;
 }
