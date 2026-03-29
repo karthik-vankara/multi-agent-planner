@@ -1,4 +1,5 @@
 import { callLLMJSON } from "../utils/llm.js";
+import { validatePlan } from "../utils/schemaValidator.js";
 
 export async function plannerAgent(userGoal) {
   const systemPrompt = `
@@ -78,5 +79,6 @@ Return ONLY valid JSON — no markdown, no explanations:
     });
   }
 
+  validatePlan(plan);
   return plan;
 }

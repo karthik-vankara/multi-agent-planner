@@ -1,4 +1,5 @@
 import { callLLMJSON } from "../utils/llm.js";
+import { validateSchedule } from "../utils/schemaValidator.js";
 
 /**
  * Refiner agent — receives full context: validator errors, critic feedback, score, and suggestions.
@@ -76,8 +77,10 @@ Suggestions:
 ${JSON.stringify(suggestions)}
 `;
 
-  return callLLMJSON([
+  const result = await callLLMJSON([
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ]);
+  validateSchedule(result);
+  return result;
 }

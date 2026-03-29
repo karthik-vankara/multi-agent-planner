@@ -1,4 +1,5 @@
 import { callLLMJSON } from "../utils/llm.js";
+import { validateSchedule } from "../utils/schemaValidator.js";
 
 /**
  * Optimizer agent — two modes:
@@ -77,8 +78,10 @@ Return ONLY valid JSON — no markdown, no explanations:
 }
 `;
 
-  return callLLMJSON([
+  const result = await callLLMJSON([
     { role: "system", content: systemPrompt },
     { role: "user", content: `Plan:\n${JSON.stringify(plan)}` },
   ]);
+  validateSchedule(result);
+  return result;
 }

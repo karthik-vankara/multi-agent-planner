@@ -1,60 +1,92 @@
+// ── Config must be imported first so env vars are loaded before any other module ──
+import "../config/env.js";
+
 import express from "express";
-import { run } from "./index.js";
+
+// Middleware
+import { cors }          from "./middleware/cors.js";
+import { auth }          from "./middleware/auth.js";
+import { rateLimiter }   from "./middleware/rateLimiter.js";
+import { errorHandler }  from "./middleware/errorHandler.js";
+
+// Controllers
+import { createRunHandler, getRunHandler, cancelRunHandler } from "./controllers/runsController.js";
+
+// Shared utils
+import { validateApiRequest } from "./utils/schemaValidator.js";
+import { executeRun }         from "./orchestrator/runExecutor.js";
+
+const MAX_BODY = (parseInt(process.env.MAX_BODY_KB ?? "10", 10)) * 1024;
+const PORT     = parseInt(process.env.PORT ?? "3000", 10);
 
 const app = express();
-app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+// ── Middleware stack (order matters) ─────────────────────────────────────────
+app.use(express.json({ limit: MAX_BODY }));
+app.use(cors);
+app.use(auth);
+app.use(rateLimiter);
 
-/**
- * POST /plan
- *
- * Body (JSON):
- *   goal   {string}  required — natural language planning goal OR base description
- *   days   {number}  optional — duration override (appended to goal string)
- *   hours  {number}  optional — daily hours override (appended to goal string)
- *
- * Response (JSON):
- *   { success: true,  result: { bestScore, validatorErrors, qualityIssues, suggestions, schedule } }
- *   { success: false, error: "..." }
- */
-app.post("/plan", async (req, res) => {
-  const { goal, days, hours } = req.body ?? {};
-
-  if (!goal || typeof goal !== "string" || goal.trim() === "") {
-    return res.status(400).json({ success: false, error: "Field 'goal' is required and must be a non-empty string." });
-  }
-
-  if (days !== undefined && (typeof days !== "number" || days < 1 || days > 365)) {
-    return res.status(400).json({ success: false, error: "'days' must be a number between 1 and 365." });
-  }
-
-  if (hours !== undefined && (typeof hours !== "number" || hours < 0.5 || hours > 24)) {
-    return res.status(400).json({ success: false, error: "'hours' must be a number between 0.5 and 24." });
-  }
-
-  // Build goal string — same construction as CLI
-  let goalText = goal.trim();
-  if (days)  goalText += ` in ${days} days`;
-  if (hours) goalText += ` with ${hours} hours daily`;
-
-  console.log(`\n[API] POST /plan — goal: "${goalText}"`);
-
-  try {
-    const result = await run(goalText);
-    res.json({ success: true, result });
-  } catch (err) {
-    console.error("[API] Error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
+// ── Health ────────────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// ── Async run lifecycle ──────────────────────────────────────────────────────
+/**
+ * POST /runs
+ * Start a new async planning run.
+ * Returns 202 immediately with run_id for polling.
+ */
+app.post("/runs", createRunHandler);
+
+/**
+ * GET /runs/:run_id
+ * Poll the status and result of a run.
+ */
+app.get("/runs/:run_id", getRunHandler);
+
+/**
+ * POST /runs/:run_id/cancel
+ * Request cancellation of a queued or running run.
+ */
+app.post("/runs/:run_id/cancel", cancelRunHandler);
+
+// ── Compatibility endpoint (deprecated — use POST /runs) ─────────────────────
+/**
+ * POST /plan
+ * @deprecated  Use POST /runs for a non-blocking async experience.
+ *              This endpoint blocks until the full run completes and will be
+ *              removed in a future version.
+ */
+app.post("/plan", async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    validateApiRequest(body);
+
+    let goalText = body.goal.trim();
+    if (body.days)  goalText += ` in ${body.days} days`;
+    if (body.hours) goalText += ` with ${body.hours} hours daily`;
+
+    console.log(`\n[API] POST /plan (deprecated) — goal: "${goalText}"`);
+
+    const result = await executeRun(goalText);
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Link",        '</runs>; rel="successor-version"');
+    res.json({ success: true, result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Central error handler (must be last) ─────────────────────────────────────
+app.use(errorHandler);
+
 app.listen(PORT, () => {
-  console.log(`\n🚀 Multi-Agent Planner API running on http://localhost:${PORT}`);
-  console.log(`   POST /plan  { goal, days?, hours? }`);
-  console.log(`   GET  /health\n`);
+  console.log(`\n🚀 Multi-Agent Planner API  →  http://localhost:${PORT}`);
+  console.log(`   POST /runs                 { goal, days?, hours? }  → 202 + run_id`);
+  console.log(`   GET  /runs/:id             poll status & result`);
+  console.log(`   POST /runs/:id/cancel      cancel a run`);
+  console.log(`   GET  /health`);
+  console.log(`   POST /plan  [deprecated]   sync endpoint (kept for compat)\n`);
 });

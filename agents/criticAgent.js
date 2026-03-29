@@ -1,4 +1,5 @@
 import { callLLMJSON } from "../utils/llm.js";
+import { validateReview } from "../utils/schemaValidator.js";
 
 /**
  * Critic agent — evaluates QUALITY only.
@@ -72,8 +73,10 @@ Validator Errors (already caught — do not repeat, but factor into score):
 ${JSON.stringify(validatorErrors)}
 `;
 
-  return callLLMJSON([
+  const result = await callLLMJSON([
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ]);
+  validateReview(result);
+  return result;
 }

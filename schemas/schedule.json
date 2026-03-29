@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["goal", "schedule"],
+  "additionalProperties": false,
+  "properties": {
+    "goal": { "type": "string", "minLength": 1 },
+    "schedule": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^day_\\d+$": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["task_id", "hours"],
+            "additionalProperties": false,
+            "properties": {
+              "task_id": { "type": "string", "pattern": "^task_\\d+$" },
+              "hours":   { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
