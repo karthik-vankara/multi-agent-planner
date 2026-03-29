@@ -1,7 +1,11 @@
 import { API_KEY } from "../config/env.js";
 import { AuthError } from "../utils/errors.js";
 
-const PUBLIC_PATHS = new Set(["/health"]);
+function isPublicPath(path = "") {
+  // Vercel and some rewrites can expose health as /api/health.
+  // Keep both forms (with optional trailing slash) public.
+  return path === "/health" || path === "/health/" || path === "/api/health" || path === "/api/health/";
+}
 
 /**
  * Static API-key auth middleware.
@@ -11,7 +15,7 @@ const PUBLIC_PATHS = new Set(["/health"]);
  */
 export function auth(req, res, next) {
   // Keep liveness checks public so monitors and deployment probes can work.
-  if (PUBLIC_PATHS.has(req.path)) return next();
+  if (isPublicPath(req.path)) return next();
 
   if (!API_KEY) return next(); // auth disabled
 
