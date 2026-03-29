@@ -37,7 +37,7 @@ export const LLM_MAX_RETRIES = parseInt(optional("LLM_MAX_RETRIES", "3"),     10
 
 // ── Orchestration ─────────────────────────────────────────────────────────────
 export const MAX_ITERATIONS   = parseInt(optional("MAX_ITERATIONS",   "7"),  10);
-export const QUEUE_CONCURRENCY = parseInt(optional("QUEUE_CONCURRENCY", "3"), 10);
+export const QUEUE_CONCURRENCY = parseInt(optional("QUEUE_CONCURRENCY", "5"), 10);
 export const QUEUE_MAX_SIZE    = parseInt(optional("QUEUE_MAX_SIZE",  "50"),  10);
 export const RUN_TTL_MS        = parseInt(optional("RUN_TTL_MS", String(2 * 60 * 60 * 1000)), 10); // 2h
 

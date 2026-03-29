@@ -4,20 +4,24 @@ import "./config/env.js";
 import express from "express";
 
 // Middleware
-import { cors }          from "./middleware/cors.js";
-import { auth }          from "./middleware/auth.js";
-import { rateLimiter }   from "./middleware/rateLimiter.js";
-import { errorHandler }  from "./middleware/errorHandler.js";
+import { cors } from "./middleware/cors.js";
+import { auth } from "./middleware/auth.js";
+import { rateLimiter } from "./middleware/rateLimiter.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 // Controllers
-import { createRunHandler, getRunHandler, cancelRunHandler } from "./controllers/runsController.js";
+import {
+  createRunHandler,
+  getRunHandler,
+  cancelRunHandler,
+} from "./controllers/runsController.js";
 
 // Shared utils
 import { validateApiRequest } from "./utils/schemaValidator.js";
-import { executeRun }         from "./orchestrator/runExecutor.js";
+import { executeRun } from "./orchestrator/runExecutor.js";
 
-const MAX_BODY = (parseInt(process.env.MAX_BODY_KB ?? "10", 10)) * 1024;
-const PORT     = parseInt(process.env.PORT ?? "3000", 10);
+const MAX_BODY = parseInt(process.env.MAX_BODY_KB ?? "10", 10) * 1024;
+const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
 const app = express();
 
@@ -65,14 +69,14 @@ app.post("/plan", async (req, res, next) => {
     validateApiRequest(body);
 
     let goalText = body.goal.trim();
-    if (body.days)  goalText += ` in ${body.days} days`;
+    if (body.days) goalText += ` in ${body.days} days`;
     if (body.hours) goalText += ` with ${body.hours} hours daily`;
 
     console.log(`\n[API] POST /plan (deprecated) — goal: "${goalText}"`);
 
     const result = await executeRun(goalText);
     res.setHeader("Deprecation", "true");
-    res.setHeader("Link",        '</runs>; rel="successor-version"');
+    res.setHeader("Link", '</runs>; rel="successor-version"');
     res.json({ success: true, result });
   } catch (err) {
     next(err);
@@ -82,11 +86,22 @@ app.post("/plan", async (req, res, next) => {
 // ── Central error handler (must be last) ─────────────────────────────────────
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Multi-Agent Planner API  →  http://localhost:${PORT}`);
-  console.log(`   POST /runs                 { goal, days?, hours? }  → 202 + run_id`);
-  console.log(`   GET  /runs/:id             poll status & result`);
-  console.log(`   POST /runs/:id/cancel      cancel a run`);
-  console.log(`   GET  /health`);
-  console.log(`   POST /plan  [deprecated]   sync endpoint (kept for compat)\n`);
-});
+
+
+const isMain = process.argv[1]?.endsWith("api.js");
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Multi-Agent Planner API  →  http://localhost:${PORT}`);
+    console.log(
+      `   POST /runs                 { goal, days?, hours? }  → 202 + run_id`,
+    );
+    console.log(`   GET  /runs/:id             poll status & result`);
+    console.log(`   POST /runs/:id/cancel      cancel a run`);
+    console.log(`   GET  /health`);
+    console.log(
+      `   POST /plan  [deprecated]   sync endpoint (kept for compat)\n`,
+    );
+  });
+}
+
+export default app;
